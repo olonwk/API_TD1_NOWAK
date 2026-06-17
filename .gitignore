@@ -1,0 +1,25 @@
+# Environnement virtuel
+venv/
+.venv/
+env/
+
+# Secrets — ne jamais commiter
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Pytest / couverture
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs Docker
+*.log

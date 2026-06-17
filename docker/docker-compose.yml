@@ -1,0 +1,46 @@
+# docker-compose.yml - Orchestration des deux APIs ECHE834
+# Lance les deux services avec : docker-compose up -d
+
+version: "3.9"
+
+services:
+
+  # ── API REST Flask (Exercice 1) ─────────────────────────────────────────
+  api-rest:
+    build:
+      context: ../exercice1_rest   # Dossier contenant le Dockerfile REST
+      dockerfile: Dockerfile
+    container_name: eche834-api-rest
+    ports:
+      - "5000:5000"               # hote:conteneur
+    environment:
+      # Lecture depuis le fichier .env à la racine du projet
+      - API_TOKEN=${API_TOKEN:-mon_token_secret_123}
+      - FLASK_ENV=development
+    volumes:
+      # Hot reload en développement : les modifications locales sont reflétées
+      - ../exercice1_rest:/app
+    restart: unless-stopped
+
+  # ── API GraphQL FastAPI (Exercice 2) ────────────────────────────────────
+  api-graphql:
+    build:
+      context: ../exercice2_graphql   # Dossier contenant le Dockerfile GraphQL
+      dockerfile: Dockerfile
+    container_name: eche834-api-graphql
+    ports:
+      - "8000:8000"
+    environment:
+      - API_TOKEN=${API_TOKEN:-mon_token_secret_123}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../exercice2_graphql:/app
+    restart: unless-stopped
+    # Démarre uniquement après l'API REST
+    depends_on:
+      - api-rest
+
+# Les deux services partagent le réseau par défaut créé par docker-compose.
+# Ils peuvent se joindre via leurs noms de service :
+#   http://api-rest:5000/evenements
+#   http://api-graphql:8000/graphql
