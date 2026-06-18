@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """API REST - Réservations de salles — Médiathèque municipale
 
-Exercice 2 TD2 — Étape 3 : Implémentation (squelette des routes)
-Framework retenu : FastAPI (cf. td2_benchmark pour la comparaison)
+Exercice 2 TD2 — Étape 4 : Validation des données et gestion des erreurs
 """
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List
+from datetime import date, time
 
 security = HTTPBearer()
 
@@ -32,6 +32,39 @@ class ReservationInput(BaseModel):
     date: str
     heure_debut: str
     heure_fin: str
+
+    @field_validator("date")
+    @classmethod
+    def valider_date(cls, v):
+        try:
+            date.fromisoformat(v)
+        except ValueError:
+            raise ValueError("La date doit être au format YYYY-MM-DD")
+        return v
+
+    @field_validator("heure_debut", "heure_fin")
+    @classmethod
+    def valider_heure(cls, v):
+        try:
+            time.fromisoformat(v)
+        except ValueError:
+            raise ValueError("L'heure doit être au format HH:MM")
+        return v
+
+    @field_validator("heure_fin")
+    @classmethod
+    def heure_fin_apres_debut(cls, v, info):
+        debut = info.data.get("heure_debut")
+        if debut and v <= debut:
+            raise ValueError("heure_fin doit être postérieure à heure_debut")
+        return v
+
+    @field_validator("usager")
+    @classmethod
+    def usager_non_vide(cls, v):
+        if not v.strip():
+            raise ValueError("Le champ usager ne peut pas être vide")
+        return v.strip()
 
 
 class Reservation(ReservationInput):
@@ -69,7 +102,30 @@ next_reservation_id = 2
 
 def verifier_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if credentials.credentials != API_TOKEN:
-        raise HTTPException(status_code=403, detail="Token invalide")
+        raise HTTPException(
+            status_code=403,
+            detail={"erreur": "Accès refusé", "detail": "Token invalide"}
+        )
+
+
+def creneaux_se_chevauchent(debut1: str, fin1: str, debut2: str, fin2: str) -> bool:
+    return debut1 < fin2 and fin1 > debut2
+
+
+def verifier_chevauchement(salle_id: int, date_resa: str, heure_debut: str, heure_fin: str):
+    for resa in reservations_db:
+        if resa["salle_id"] == salle_id and resa["date"] == date_resa:
+            if creneaux_se_chevauchent(heure_debut, heure_fin, resa["heure_debut"], resa["heure_fin"]):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "erreur": "Conflit de réservation",
+                        "detail": (
+                            f"La salle {salle_id} est déjà réservée le {date_resa} "
+                            f"de {resa['heure_debut']} à {resa['heure_fin']} par {resa['usager']}"
+                        ),
+                    },
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +168,7 @@ def create_reservation(salle_id: int, resa_input: ReservationInput,
     salle = next((s for s in salles_db if s["id"] == salle_id), None)
     if salle is None:
         raise HTTPException(status_code=404, detail=MSG_SALLE_INTROUVABLE)
+    verifier_chevauchement(salle_id, resa_input.date, resa_input.heure_debut, resa_input.heure_fin)
     nouvelle_resa = {"id": next_reservation_id, "salle_id": salle_id, **resa_input.model_dump()}
     reservations_db.append(nouvelle_resa)
     next_reservation_id += 1
