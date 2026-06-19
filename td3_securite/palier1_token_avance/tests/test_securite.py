@@ -2,6 +2,7 @@
 
 import sys
 import os
+sys.modules.pop("app", None)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
