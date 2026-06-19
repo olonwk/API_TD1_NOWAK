@@ -16,6 +16,7 @@ Séparation access / refresh :
 
 import secrets
 from datetime import datetime, timedelta
+from uuid import uuid4
 from flask import Flask, jsonify, request, abort
 from jose import jwt, JWTError
 
@@ -50,6 +51,7 @@ def creer_access_token(username: str) -> str:
         "sub": username,
         "exp": datetime.utcnow() + timedelta(minutes=ACCES_TOKEN_MINUTES),
         "type": "access",
+        "jti": str(uuid4()),  # identifiant unique pour permettre la révocation future
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
